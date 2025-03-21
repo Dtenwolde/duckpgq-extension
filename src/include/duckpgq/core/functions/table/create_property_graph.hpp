@@ -12,6 +12,7 @@
 #include "duckdb/parser/parsed_data/create_property_graph_info.hpp"
 #include "duckdb/catalog/catalog_entry/table_catalog_entry.hpp"
 
+
 namespace duckpgq {
 
 namespace core {
@@ -37,11 +38,14 @@ public:
 
   static void
   CheckPropertyGraphTableLabels(const shared_ptr<PropertyGraphTable> &pg_table,
-                                TableCatalogEntry &table);
+                                optional_ptr<TableCatalogEntry> &table);
 
   static void
   CheckPropertyGraphTableColumns(const shared_ptr<PropertyGraphTable> &pg_table,
-                                 TableCatalogEntry &table);
+                                 optional_ptr<TableCatalogEntry> &table);
+
+  static reference<TableCatalogEntry> GetTableCatalogEntry(ClientContext &context,
+    shared_ptr<PropertyGraphTable> &pg_table);
 
   static unique_ptr<FunctionData>
   CreatePropertyGraphBind(ClientContext &context, TableFunctionBindInput &input,
@@ -49,13 +53,11 @@ public:
                           vector<string> &names);
 
   static void
-  ValidateVertexTableRegistration(const string &reference,
+  ValidateVertexTableRegistration(shared_ptr<PropertyGraphTable> &pg_table,
                                   const case_insensitive_set_t &v_table_names);
 
-  static void ValidatePrimaryKeyInTable(Catalog &catalog,
-                                        ClientContext &context,
-                                        const string &schema,
-                                        const string &reference,
+  static void ValidatePrimaryKeyInTable(ClientContext &context,
+                                        shared_ptr<PropertyGraphTable> &pg_table,
                                         const vector<string> &pk_columns);
 
   static void
