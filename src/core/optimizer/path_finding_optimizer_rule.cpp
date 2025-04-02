@@ -74,32 +74,43 @@ unique_ptr<LogicalPathFindingOperator> DuckpgqOptimizerExtension::FindCSRAndPair
     LogicalProjection& op_proj,
     ClientContext &context) {
   bool csr_found = false;
+  bool reverse_csr_found = false;
   vector<unique_ptr<Expression>> path_finding_expressions;
   vector<unique_ptr<LogicalOperator>> path_finding_children;
   LogicalProjection *csr_projection = nullptr;
-  if (first_child->type == LogicalOperatorType::LOGICAL_PROJECTION) {
-    auto &first_proj = first_child->Cast<LogicalProjection>();
-    for (const auto &expr : first_proj.expressions) {
-      if (expr->type != ExpressionType::OPERATOR_CAST) {
-        continue;
-      }
-      auto &bound_cast_expr = expr->Cast<BoundCastExpression>();
-      if (bound_cast_expr.GetName() == "csr_id") {
-        csr_found = true;
-        csr_projection = &first_proj;
-        break;
+  LogicalProjection *reverse_csr_projection = nullptr;
+  if (first_child->type == LogicalOperatorType::LOGICAL_CROSS_PRODUCT) {
+    auto &potential_csr_cross = first_child->Cast<LogicalCrossProduct>();
+    for (const auto &cross_child : potential_csr_cross.children) {
+      auto &proj = cross_child->Cast<LogicalProjection>();
+      for (const auto &expr : proj.expressions) {
+        if (expr->type != ExpressionType::BOUND_COLUMN_REF) {
+          continue;
+        }
+        auto &bound_col_ref_expr = expr->Cast<BoundColumnRefExpression>();
+        if (bound_col_ref_expr.GetName() == "csr_id") {
+          csr_found = true;
+          csr_projection = &proj;
+          break;
+        } if (bound_col_ref_expr.GetName() == "reverse_csr_id") {
+          reverse_csr_found = true;
+          reverse_csr_projection = &proj;
+          break;
+        }
       }
     }
+
   }
 
-  if (csr_found) {
-    if (csr_projection == nullptr) {
-      throw InternalException("Found CSR but the projection node was not found");
+  if (csr_found && reverse_csr_found) {
+    if (csr_projection == nullptr || reverse_csr_projection == nullptr) {
+      throw InternalException("Found CSR & Reverse CSR but one of their nodes was not found.");
     }
     path_finding_children.push_back(std::move(second_child));
     path_finding_children.push_back(csr_projection->Copy(context));
-    if (path_finding_children.size() != 2) {
-      throw InternalException("Path-finding operator should have 2 children");
+    path_finding_children.push_back(reverse_csr_projection->Copy(context));
+    if (path_finding_children.size() != 3) {
+      throw InternalException("Path-finding operator should have 3 children");
     }
     unique_ptr<Expression> function_expression;
     string path_finding_mode;

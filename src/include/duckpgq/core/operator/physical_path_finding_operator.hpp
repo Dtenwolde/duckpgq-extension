@@ -28,7 +28,8 @@ class PhysicalPathFinding : public PhysicalComparisonJoin {
 public:
   PhysicalPathFinding(LogicalExtensionOperator &op,
                       unique_ptr<PhysicalOperator> pairs,
-                      unique_ptr<PhysicalOperator> csr);
+                      unique_ptr<PhysicalOperator> csr,
+                      unique_ptr<PhysicalOperator> reverse_csr);
 
   static constexpr PhysicalOperatorType TYPE =
       PhysicalOperatorType::EXTENSION;

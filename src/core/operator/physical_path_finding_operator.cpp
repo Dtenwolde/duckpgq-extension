@@ -28,10 +28,12 @@ namespace core {
 
 PhysicalPathFinding::PhysicalPathFinding(LogicalExtensionOperator &op,
                                          unique_ptr<PhysicalOperator> pairs,
-                                         unique_ptr<PhysicalOperator> csr)
+                                         unique_ptr<PhysicalOperator> csr,
+                                         unique_ptr<PhysicalOperator> reverse_csr)
     : PhysicalComparisonJoin(op, TYPE, {}, JoinType::INNER, op.estimated_cardinality) {
   children.push_back(std::move(pairs));
   children.push_back(std::move(csr));
+  children.push_back(std::move(reverse_csr));
   expressions = std::move(op.expressions);
   estimated_cardinality = op.estimated_cardinality;
   auto &path_finding_op = op.Cast<LogicalPathFindingOperator>();
@@ -387,7 +389,7 @@ SourceResultType PhysicalPathFinding::GetData(ExecutionContext &context, DataChu
 //===--------------------------------------------------------------------===//
 void PhysicalPathFinding::BuildPipelines(Pipeline &current,
                                          MetaPipeline &meta_pipeline) {
-  D_ASSERT(children.size() == 2);
+  D_ASSERT(children.size() == 3);
   if (meta_pipeline.HasRecursiveCTE()) {
     throw NotImplementedException(
         "Path Finding is not supported in recursive CTEs yet");
@@ -403,6 +405,10 @@ void PhysicalPathFinding::BuildPipelines(Pipeline &current,
   // Build out LHS
   auto lhs_pipeline = child_meta_pipeline.GetBasePipeline();
   children[1]->BuildPipelines(*lhs_pipeline, child_meta_pipeline);
+
+  // Build out LLHS
+  auto llhs_pipeline = child_meta_pipeline.GetBasePipeline();
+  children[2]->BuildPipelines(*llhs_pipeline, child_meta_pipeline);
 
   // Build out RHS
   auto &rhs_pipeline = child_meta_pipeline.CreatePipeline();
