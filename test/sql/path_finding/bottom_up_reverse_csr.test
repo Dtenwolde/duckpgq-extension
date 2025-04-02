@@ -1,0 +1,215 @@
+
+
+require duckpgq
+
+statement ok
+set experimental_path_finding_operator=true;
+
+statement ok
+select setseed(0.42);
+
+
+statement ok
+set experimental_path_finding_operator_heavy_partition_fraction=0.5;
+
+statement ok
+set experimental_path_finding_operator_light_partition_multiplier = 2;
+
+query I
+SELECT current_setting('experimental_path_finding_operator');
+----
+true
+
+statement ok
+import database '/Users/dljtw/git/duckpgq/duckdb/data/SNB0.003';
+
+statement ok
+create or replace table snb_pairs as (
+   select src, dst
+   from (select a.rowid as src from person a),
+        (select b.rowid as dst from person b)
+   using sample reservoir(50 rows) repeatable (300)
+);
+
+statement ok
+set threads = 2;
+
+query III
+with reverse_csr_cte as (
+        SELECT cast(min(create_csr_edge(
+                0,
+                (SELECT count(a.id) FROM person a), --
+                CAST (
+                    (SELECT sum(create_csr_vertex(
+                        0,
+                        (SELECT count(a.id) FROM person a),
+                        sub.dense_id,
+                        sub.cnt))
+                    FROM (
+                        SELECT a.rowid as dense_id, count(k.person2id) as cnt
+                        FROM person a
+                        LEFT JOIN person_knows_person k ON k.person2id = a.id
+                        GROUP BY a.rowid) sub
+                    )
+                AS BIGINT),
+                (select count() FROM person_knows_person k JOIN person a on a.id = k.person2id JOIN person c on c.id = k.person1id),
+                a.rowid,
+                c.rowid,
+                k.rowid)) as bigint) as reverse_csr_id
+                FROM person_knows_person k
+                JOIN person a on a.id = k.person1id
+                JOIN person c on c.id = k.person2id),
+csr_cte as (
+        SELECT cast(min(create_csr_edge(
+                1,
+                (SELECT count(a.id) FROM person a),
+                CAST (
+                    (SELECT sum(create_csr_vertex(
+                        1,
+                        (SELECT count(a.id) FROM person a),
+                        sub.dense_id,
+                        sub.cnt))
+                    FROM (
+                        SELECT a.rowid as dense_id, count(k.person1id) as cnt
+                        FROM person a
+                        LEFT JOIN person_knows_person k ON k.person1id = a.id
+                        GROUP BY a.rowid) sub
+                    )
+                AS BIGINT),
+                (select count() FROM person_knows_person k JOIN person a on a.id = k.person1id JOIN person c on c.id = k.person2id),
+                a.rowid,
+                c.rowid,
+                k.rowid)) as bigint) as csr_id
+            FROM person_knows_person k
+            JOIN person a on a.id = k.person1id
+            JOIN person c on c.id = k.person2id)
+        SELECT src as source, dst as destination, iterativelengthoperator(src, dst, csr_id, reverse_csr_id) as path FROM snb_pairs, csr_cte, reverse_csr_cte;
+----
+2	43	3
+49	9	NULL
+24	4	NULL
+18	46	3
+37	49	NULL
+31	19	NULL
+12	36	2
+3	38	3
+24	23	NULL
+9	2	NULL
+43	33	NULL
+43	38	NULL
+42	47	NULL
+32	29	NULL
+41	27	NULL
+36	42	NULL
+23	21	NULL
+42	25	NULL
+16	31	2
+1	37	NULL
+0	49	NULL
+2	38	3
+16	4	NULL
+0	12	NULL
+47	48	NULL
+17	5	NULL
+27	27	0
+21	24	NULL
+6	29	NULL
+2	11	NULL
+11	34	NULL
+31	30	NULL
+30	12	NULL
+37	14	NULL
+27	43	NULL
+38	0	NULL
+28	18	NULL
+17	26	NULL
+22	18	NULL
+27	1	NULL
+42	14	NULL
+16	47	NULL
+5	22	NULL
+36	24	NULL
+7	25	NULL
+46	41	NULL
+47	1	NULL
+47	2	NULL
+45	32	NULL
+25	32	2
+
+
+# query III
+# with csr_cte as (
+# SELECT cast(min(create_csr_edge(
+#         0,
+#         (SELECT count(a.id) FROM person a),
+#         CAST (
+#             (SELECT sum(create_csr_vertex(
+#                 0,
+#                 (SELECT count(a.id) FROM person a),
+#                 sub.dense_id,
+#                 sub.cnt))
+#             FROM (
+#                 SELECT a.rowid as dense_id, count(k.person1id) as cnt
+#                 FROM person a
+#                 LEFT JOIN person_knows_person k ON k.person1id = a.id
+#                 GROUP BY a.rowid) sub
+#             )
+#         AS BIGINT),
+#         (select count() FROM person_knows_person k JOIN person a on a.id = k.person1id JOIN person c on c.id = k.person2id),
+#         a.rowid,
+#         c.rowid,
+#         k.rowid)) as bigint) as csr_id
+#     FROM person_knows_person k
+#     JOIN person a on a.id = k.person1id
+#     JOIN person c on c.id = k.person2id)
+# SELECT src, dst, iterativelengthoperator(src, dst, csr_id) FROM snb_pairs, csr_cte where src < 10;
+# ----
+# 2	43	3
+# 3	38	3
+# 9	2	NULL
+# 1	37	NULL
+# 0	49	NULL
+# 2	38	3
+# 0	12	NULL
+# 6	29	NULL
+# 2	11	NULL
+# 5	22	NULL
+# 7	25	NULL
+#
+#
+# # 0 pair test
+# statement ok
+# create or replace table snb_zero_pairs as (
+#    select src, dst
+#    from (select a.rowid as src from person a),
+#         (select b.rowid as dst from person b)
+#    using sample reservoir(0 rows) repeatable (300)
+# );
+#
+# query III
+# with csr_cte as (
+# SELECT cast(min(create_csr_edge(
+#         0,
+#         (SELECT count(a.id) FROM person a),
+#         CAST (
+#             (SELECT sum(create_csr_vertex(
+#                 0,
+#                 (SELECT count(a.id) FROM person a),
+#                 sub.dense_id,
+#                 sub.cnt))
+#             FROM (
+#                 SELECT a.rowid as dense_id, count(k.person1id) as cnt
+#                 FROM person a
+#                 LEFT JOIN person_knows_person k ON k.person1id = a.id
+#                 GROUP BY a.rowid) sub
+#             )
+#         AS BIGINT),
+#         (select count() FROM person_knows_person k JOIN person a on a.id = k.person1id JOIN person c on c.id = k.person2id),
+#         a.rowid,
+#         c.rowid,
+#         k.rowid)) as bigint) as csr_id
+#     FROM person_knows_person k
+#     JOIN person a on a.id = k.person1id
+#     JOIN person c on c.id = k.person2id)
+# SELECT src, dst, iterativelengthoperator(src, dst, csr_id) FROM snb_zero_pairs, csr_cte;
+# ----

@@ -61,13 +61,34 @@ set experimental_path_finding_operator_light_partition_multiplier = 1;
 # set threads=8;
 
 query III nosort lengthpairs
-with csr_cte as (
+with reverse_csr_cte as (
         SELECT cast(min(create_csr_edge(
                 0,
                 (SELECT count(a.id) FROM person a),
                 CAST (
                     (SELECT sum(create_csr_vertex(
                         0,
+                        (SELECT count(a.id) FROM person a),
+                        sub.dense_id,
+                        sub.cnt))
+                    FROM (
+                        SELECT a.rowid as dense_id, count(k.person2id) as cnt
+                        FROM person a
+                        LEFT JOIN person_knows_person k ON k.person2id = a.id
+                        GROUP BY a.rowid) sub
+                    )
+                AS BIGINT),
+                (select count() FROM person_knows_person k JOIN person a on a.id = k.person2id JOIN person c on c.id = k.person1id),
+                a.rowid,
+                c.rowid,
+                k.rowid)) as bigint) as reverse_csr_id,
+csr_cte as (
+        SELECT cast(min(create_csr_edge(
+                1,
+                (SELECT count(a.id) FROM person a),
+                CAST (
+                    (SELECT sum(create_csr_vertex(
+                        1,
                         (SELECT count(a.id) FROM person a),
                         sub.dense_id,
                         sub.cnt))
@@ -85,7 +106,7 @@ with csr_cte as (
             FROM person_knows_person k
             JOIN person a on a.id = k.person1id
             JOIN person c on c.id = k.person2id)
-        SELECT src as source, dst as destination, iterativelengthoperator(src, dst, csr_id) as path FROM snb_pairs, csr_cte;
+        SELECT src as source, dst as destination, iterativelengthoperator(src, dst, csr_id, reserve_csr_id) as path FROM snb_pairs, csr_cte;
 
 # statement ok
 # set threads=1;
