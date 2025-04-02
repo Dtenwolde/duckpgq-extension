@@ -15,7 +15,7 @@ namespace core {
 
 string LocalCSR::ToString() const {
     std::ostringstream result;
-    size_t max_print_value = 10;
+    size_t max_print_value = 50;
     if (initialized_v) {
         result << "v (Node Offsets):\n";
         for (size_t i = 0; i < std::min(max_print_value, v_array_size); i++) {

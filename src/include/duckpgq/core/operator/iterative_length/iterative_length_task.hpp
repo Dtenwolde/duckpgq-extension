@@ -23,17 +23,25 @@ private:
                    shared_ptr<LocalCSR> &local_csr) const;
   void UnReachableSet() const;
 
-  double Explore(const std::vector<std::bitset<LANE_LIMIT>> &visit,
+  double ExploreTopDown(const std::vector<std::bitset<LANE_LIMIT>> &visit,
     std::vector<std::bitset<LANE_LIMIT>> &next,
     const std::atomic<uint32_t> *v,
     const std::vector<uint16_t> &e,
     size_t v_size, idx_t start_vertex);
 
+  double ExploreBottomUp(const std::vector<std::bitset<LANE_LIMIT>> &visit,
+    std::vector<std::bitset<LANE_LIMIT>> &next,
+    const std::atomic<uint32_t> *v,
+    const std::vector<uint16_t> &e,
+    size_t v_size,
+    idx_t start_vertex);
+
   void RunExplore(const std::vector<std::bitset<LANE_LIMIT>> &visit,
                 std::vector<std::bitset<LANE_LIMIT>> &next,
                 const std::atomic<uint32_t> *v,
                 const std::vector<uint16_t> &e,
-                size_t v_size, idx_t start_vertex);
+                size_t v_size, idx_t start_vertex,
+                bool use_bottom_up);
 private:
   ClientContext &context;
   shared_ptr<IterativeLengthState> &state;

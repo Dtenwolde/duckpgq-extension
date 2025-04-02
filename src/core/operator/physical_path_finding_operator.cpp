@@ -78,7 +78,9 @@ void PathFindingGlobalSinkState::Sink(DataChunk &input, PathFindingLocalSinkStat
     csr_id = input.GetValue(0, 0).GetValue<int64_t>();
     reverse_csr_id = input.GetValue(1, 0).GetValue<int64_t>();
     csr = duckpgq_state->GetCSR(csr_id);
+    Printer::PrintF("%s", csr->ToString());
     reverse_csr = duckpgq_state->GetCSR(reverse_csr_id);
+    Printer::PrintF("%s", reverse_csr->ToString());
   } else {
     // path-finding phase
     lstate.Sink(input, child);
@@ -159,7 +161,9 @@ PhysicalPathFinding::Finalize(Pipeline &pipeline, Event &event,
     current_chunk->Initialize(context, gstate.global_pairs->Types());
     gstate.global_pairs->Scan(gstate.global_scan_state, *current_chunk);
     if (gstate.mode == "iterativelength") {
-      auto bfs_state = make_shared_ptr<IterativeLengthState>(current_chunk, gstate.local_csr_state->partition_csrs, gstate.num_threads, context, gstate.csr->vsize);
+      auto bfs_state = make_shared_ptr<IterativeLengthState>(current_chunk, gstate.local_csr_state->partition_csrs,
+        gstate.local_reverse_csr_state->partition_csrs, gstate.num_threads,
+        context, gstate.csr->vsize);
       bfs_state->ScheduleBFSBatch(pipeline, event, this);
       gstate.bfs_states.push_back(std::move(bfs_state));
     } else if (gstate.mode == "shortestpath") {

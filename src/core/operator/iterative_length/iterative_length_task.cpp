@@ -64,7 +64,7 @@ TaskExecutionResult IterativeLengthTask::ExecuteTask(TaskExecutionMode mode) {
   return TaskExecutionResult::TASK_FINISHED;
 }
 
-double IterativeLengthTask::Explore(const std::vector<std::bitset<LANE_LIMIT>> &visit,
+double IterativeLengthTask::ExploreTopDown(const std::vector<std::bitset<LANE_LIMIT>> &visit,
                                   std::vector<std::bitset<LANE_LIMIT>> &next,
                                   const std::atomic<uint32_t> *v, const std::vector<uint16_t> &e, size_t v_size, idx_t start_vertex) {
   auto start_time = std::chrono::high_resolution_clock::now();
@@ -83,11 +83,46 @@ double IterativeLengthTask::Explore(const std::vector<std::bitset<LANE_LIMIT>> &
   return std::chrono::duration<double, std::milli>(end_time - start_time).count(); // Return time in ms
 }
 
-// Wrapper function to call Explore and log data
+double IterativeLengthTask::ExploreBottomUp(const std::vector<std::bitset<LANE_LIMIT>> &visit,
+                                            std::vector<std::bitset<LANE_LIMIT>> &next,
+                                            const std::atomic<uint32_t> *v,
+                                            const std::vector<uint16_t> &e,
+                                            size_t v_size,
+                                            idx_t start_vertex) {
+  auto start_time = std::chrono::high_resolution_clock::now();
+  for (auto i = 0; i < v_size; i++) {
+    if (!visit[i].any()) {
+      auto start_edges = v[i].load(std::memory_order_relaxed);
+      auto end_edges = v[i + 1].load(std::memory_order_relaxed);
+      for (auto offset = start_edges; offset < end_edges; offset++) {
+        auto neighbor = e[offset] + start_vertex;
+        if (visit[neighbor].any()) {
+          next[i] = visit[neighbor];  // Propagate the source that reached neighbor
+          break; // No need to check other neighbors
+        }
+      }
+    }
+  }
+  auto end_time = std::chrono::high_resolution_clock::now();
+  return std::chrono::duration<double, std::milli>(end_time - start_time).count();
+}
+
+
 void IterativeLengthTask::RunExplore(const std::vector<std::bitset<LANE_LIMIT>> &visit,
-                std::vector<std::bitset<LANE_LIMIT>> &next,
-                const atomic<uint32_t> *v, const std::vector<uint16_t> &e, size_t v_size, idx_t start_vertex) {
-  double duration_ms = Explore(visit, next, v, e, v_size, start_vertex);
+                                     std::vector<std::bitset<LANE_LIMIT>> &next,
+                                     const std::atomic<uint32_t> *v,
+                                     const std::vector<uint16_t> &e,
+                                     size_t v_size, idx_t start_vertex,
+                                     bool use_bottom_up) {
+
+  // Decide traversal strategy based on frontier size
+  // You can tune this threshold! For now: bottom-up if > 5% of v_size
+  double time_taken;
+  if (use_bottom_up) {
+    time_taken = ExploreBottomUp(visit, next, v, e, v_size, start_vertex);
+  } else {
+    time_taken = ExploreTopDown(visit, next, v, e, v_size, start_vertex);
+  }
 
   // Get thread & core info *outside* Explore to reduce per-call overhead
   std::thread::id thread_id = std::this_thread::get_id();
@@ -103,7 +138,7 @@ void IterativeLengthTask::RunExplore(const std::vector<std::bitset<LANE_LIMIT>> 
   // Store result safely
   {
     std::lock_guard<std::mutex> guard(state->log_mutex);
-    state->timing_data.emplace_back(thread_id, core_id, duration_ms, state->num_threads, v_size, e.size(), state->local_csrs.size(), state->iter);
+    state->timing_data.emplace_back(thread_id, core_id, time_taken, state->num_threads, v_size, e.size(), state->local_csrs.size(), state->iter);
   }
 }
 
@@ -130,18 +165,22 @@ void IterativeLengthTask::IterativeLength() {
     state->local_csr_counter = 0;
     static std::atomic<int> finished_tasks(0);
     barrier->Wait(worker_id);
-    while (state->local_csr_counter < state->local_csrs.size()) {
+    // Estimate current frontier size (number of active vertices)
+    size_t frontier_size = std::count_if(visit.begin(), visit.end(), [](const std::bitset<LANE_LIMIT> &b) { return b.any(); });
+    bool use_bottom_up = false; //frontier_size > 0.1 * state->local_csrs[0]->GetVertexSize();
+    auto csrs_to_use = use_bottom_up ? state->local_reverse_csrs : state->local_csrs;
+    while (state->local_csr_counter < csrs_to_use.size()) {
       state->local_csr_lock.lock();
-      if (state->local_csr_counter >= state->local_csrs.size()) {
+      if (state->local_csr_counter >= csrs_to_use.size()) {
         state->local_csr_lock.unlock();
         break;
       }
-      auto local_csr = state->local_csrs[state->local_csr_counter++].get();
+      auto local_csr = csrs_to_use[state->local_csr_counter++].get();
       if (!local_csr) {
         throw InternalException("Tried to reference nullptr for LocalCSR");
       }
       state->local_csr_lock.unlock();
-      RunExplore(visit, next, local_csr->v, local_csr->e, local_csr->GetVertexSize(), local_csr->start_vertex);
+      RunExplore(visit, next, local_csr->v, local_csr->e, local_csr->GetVertexSize(), local_csr->start_vertex, use_bottom_up);
     }
     state->change = false;
     // Mark this thread as finished

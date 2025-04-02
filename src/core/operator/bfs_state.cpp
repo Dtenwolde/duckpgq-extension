@@ -11,9 +11,10 @@ namespace duckpgq {
 
 namespace core {
 
-BFSState::BFSState(const shared_ptr<DataChunk> &pairs_, std::vector<shared_ptr<LocalCSR>> &local_csrs_, idx_t num_threads_,
-           string mode_, ClientContext &context_, int64_t vsize_)
-    : pairs(pairs_), local_csrs(local_csrs_), context(context_), num_threads(num_threads_), mode(std::move(mode_)), v_size(vsize_),
+BFSState::BFSState(const shared_ptr<DataChunk> &pairs_, std::vector<shared_ptr<LocalCSR>> &local_csrs_,
+  std::vector<shared_ptr<LocalCSR>> &local_reverse_csrs_,
+  idx_t num_threads_, string mode_, ClientContext &context_, int64_t vsize_)
+    : pairs(pairs_), local_csrs(local_csrs_), local_reverse_csrs(local_reverse_csrs_), context(context_), num_threads(num_threads_), mode(std::move(mode_)), v_size(vsize_),
       src_data(pairs->data[0]), dst_data(pairs->data[1]){
   LogicalType bfs_type = mode == "iterativelength"
                              ? LogicalType::BIGINT
