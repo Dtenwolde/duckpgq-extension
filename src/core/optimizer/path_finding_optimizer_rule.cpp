@@ -77,8 +77,7 @@ unique_ptr<LogicalPathFindingOperator> DuckpgqOptimizerExtension::FindCSRAndPair
   bool reverse_csr_found = false;
   vector<unique_ptr<Expression>> path_finding_expressions;
   vector<unique_ptr<LogicalOperator>> path_finding_children;
-  LogicalProjection *csr_projection = nullptr;
-  LogicalProjection *reverse_csr_projection = nullptr;
+  LogicalCrossProduct *csr_cross_product = nullptr;
   if (first_child->type == LogicalOperatorType::LOGICAL_CROSS_PRODUCT) {
     auto &potential_csr_cross = first_child->Cast<LogicalCrossProduct>();
     for (const auto &cross_child : potential_csr_cross.children) {
@@ -90,27 +89,27 @@ unique_ptr<LogicalPathFindingOperator> DuckpgqOptimizerExtension::FindCSRAndPair
         auto &bound_col_ref_expr = expr->Cast<BoundColumnRefExpression>();
         if (bound_col_ref_expr.GetName() == "csr_id") {
           csr_found = true;
-          csr_projection = &proj;
           break;
         } if (bound_col_ref_expr.GetName() == "reverse_csr_id") {
           reverse_csr_found = true;
-          reverse_csr_projection = &proj;
           break;
         }
       }
+    }
+    if (csr_found && reverse_csr_found) {
+      csr_cross_product = &potential_csr_cross;
     }
 
   }
 
   if (csr_found && reverse_csr_found) {
-    if (csr_projection == nullptr || reverse_csr_projection == nullptr) {
+    if (csr_cross_product == nullptr)  {
       throw InternalException("Found CSR & Reverse CSR but one of their nodes was not found.");
     }
     path_finding_children.push_back(std::move(second_child));
-    path_finding_children.push_back(csr_projection->Copy(context));
-    path_finding_children.push_back(reverse_csr_projection->Copy(context));
-    if (path_finding_children.size() != 3) {
-      throw InternalException("Path-finding operator should have 3 children");
+    path_finding_children.push_back(csr_cross_product->Copy(context));
+    if (path_finding_children.size() != 2) {
+      throw InternalException("Path-finding operator should have 2 children");
     }
     unique_ptr<Expression> function_expression;
     string path_finding_mode;

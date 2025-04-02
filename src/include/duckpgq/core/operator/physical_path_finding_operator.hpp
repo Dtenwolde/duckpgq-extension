@@ -28,8 +28,8 @@ class PhysicalPathFinding : public PhysicalComparisonJoin {
 public:
   PhysicalPathFinding(LogicalExtensionOperator &op,
                       unique_ptr<PhysicalOperator> pairs,
-                      unique_ptr<PhysicalOperator> csr,
-                      unique_ptr<PhysicalOperator> reverse_csr);
+                      unique_ptr<PhysicalOperator> csr
+                      );
 
   static constexpr PhysicalOperatorType TYPE =
       PhysicalOperatorType::EXTENSION;
@@ -102,14 +102,15 @@ public:
   void LogPartitionMetrics(const std::vector<idx_t>& edges_per_partition, idx_t total_vertices, idx_t total_edges);
   // pairs is a 2-column table with src and dst
   unique_ptr<ColumnDataCollection> global_pairs;
-  unique_ptr<ColumnDataCollection> global_csr_column_data;
   vector<shared_ptr<LocalCSR>> local_csrs; // Each thread gets one LocalCSR
   std::vector<std::pair<idx_t, idx_t>> partition_ranges;
   ColumnDataScanState global_scan_state;
   idx_t result_scan_idx;
   vector<shared_ptr<BFSState>> bfs_states;
   CSR* csr;
+  CSR* reverse_csr;
   int32_t csr_id;
+  int32_t reverse_csr_id;
   size_t child;
   string mode;
   ClientContext &context_;
