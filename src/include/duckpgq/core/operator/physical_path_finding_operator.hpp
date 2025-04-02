@@ -116,6 +116,7 @@ public:
   ClientContext &context_;
   idx_t num_threads;
   shared_ptr<LocalCSRState> local_csr_state;
+  shared_ptr<LocalCSRState> local_reverse_csr_state;
 };
 
 } // namespace core

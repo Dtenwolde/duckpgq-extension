@@ -78,6 +78,7 @@ void PathFindingGlobalSinkState::Sink(DataChunk &input, PathFindingLocalSinkStat
     csr_id = input.GetValue(0, 0).GetValue<int64_t>();
     reverse_csr_id = input.GetValue(1, 0).GetValue<int64_t>();
     csr = duckpgq_state->GetCSR(csr_id);
+    reverse_csr = duckpgq_state->GetCSR(reverse_csr_id);
   } else {
     // path-finding phase
     lstate.Sink(input, child);
@@ -127,9 +128,11 @@ PhysicalPathFinding::Finalize(Pipeline &pipeline, Event &event,
   auto &gstate = input.global_state.Cast<PathFindingGlobalSinkState>();
   auto duckpgq_state = GetDuckPGQState(context);
   if (gstate.csr == nullptr) {
-    throw InternalException("CSR not initialized");
+    throw InternalException("CSR not set properly.");
   }
-  // todo(dtenwolde) Add check for reverse csr nullptr
+  if (gstate.reverse_csr == nullptr) {
+    throw InternalException("Reverse CSR not set properly.");
+  }
 
 
   // Check if we have to do anything for CSR child
@@ -138,6 +141,11 @@ PhysicalPathFinding::Finalize(Pipeline &pipeline, Event &event,
     auto local_csr_state = make_shared_ptr<LocalCSRState>(context, gstate.csr, gstate.num_threads);
     gstate.local_csr_state = local_csr_state;
     event.InsertEvent(make_shared_ptr<LocalCSREvent>(local_csr_state, pipeline, *this, context));
+
+    auto local_reverse_csr_state = make_shared_ptr<LocalCSRState>(context, gstate.reverse_csr, gstate.num_threads);
+    gstate.local_reverse_csr_state = local_reverse_csr_state;
+    event.InsertEvent(make_shared_ptr<LocalCSREvent>(local_reverse_csr_state, pipeline, *this, context));
+
     return SinkFinalizeType::READY;
   }
 
