@@ -1,8 +1,8 @@
 #include "duckpgq/core/operator/iterative_length/iterative_length_task.hpp"
+#include <duckdb/parallel/event.hpp>
 #include <duckpgq/core/operator/iterative_length/iterative_length_state.hpp>
 #include <duckpgq/core/operator/physical_path_finding_operator.hpp>
-#include <duckdb/parallel/event.hpp>
-
+#include <duckpgq/core/option/duckpgq_option.hpp>
 
 namespace duckpgq {
 namespace core {
@@ -159,8 +159,9 @@ void IterativeLengthTask::IterativeLength() {
     barrier->Wait(worker_id);
     // Estimate current frontier size (number of active vertices)
     size_t frontier_size = std::count_if(visit.begin(), visit.end(), [](const std::bitset<LANE_LIMIT> &b) { return b.any(); });
-    bool use_bottom_up = frontier_size > 0.1 * state->local_csrs[0]->GetVertexSize();
-    auto csrs_to_use = use_bottom_up ? state->local_reverse_csrs : state->local_csrs;
+
+    bool use_bottom_up = GetEnableBottomUpSearch(context) && (frontier_size > GetBottomUpThreshold(context) * state->local_csrs[0]->GetVertexSize());
+    auto csrs_to_use = (use_bottom_up) ? state->local_reverse_csrs : state->local_csrs;
     while (state->local_csr_counter < csrs_to_use.size()) {
       state->local_csr_lock.lock();
       if (state->local_csr_counter >= csrs_to_use.size()) {

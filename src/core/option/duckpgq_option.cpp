@@ -28,9 +28,18 @@ double_t GetHeavyPartitionFraction(ClientContext &context) {
   return value.GetValue<double_t>();
 }
 
-//------------------------------------------------------------------------------
-// Register option
-//------------------------------------------------------------------------------
+double_t GetBottomUpThreshold(ClientContext &context) {
+  Value value;
+  context.TryGetCurrentSetting("experimental_path_finding_operator_bottom_up_threshold", value);
+  return value.GetValue<double_t>();
+}
+
+bool GetEnableBottomUpSearch(ClientContext &context) {
+  Value value;
+  context.TryGetCurrentSetting("experimental_path_finding_operator_enable_bottom_up", value);
+  return value.GetValue<bool>();
+}
+
 void CorePGQOptions::RegisterExperimentalPathFindingOperator(
     DatabaseInstance &db) {
   auto &config = DBConfig::GetConfig(db);
@@ -39,9 +48,6 @@ void CorePGQOptions::RegisterExperimentalPathFindingOperator(
   LogicalType::BOOLEAN, Value(false));
 }
 
-//------------------------------------------------------------------------------
-// Register option
-//------------------------------------------------------------------------------
 void CorePGQOptions::RegisterPathFindingTaskSize(
     DatabaseInstance &db) {
   auto &config = DBConfig::GetConfig(db);
@@ -50,9 +56,6 @@ void CorePGQOptions::RegisterPathFindingTaskSize(
     "Number of vertices processed per thread at a time", LogicalType::INTEGER, Value(256));
 }
 
-//------------------------------------------------------------------------------
-// Register option
-//------------------------------------------------------------------------------
 void CorePGQOptions::RegisterPathFindingLightPartitionMultiplier(
     DatabaseInstance &db) {
   auto &config = DBConfig::GetConfig(db);
@@ -61,15 +64,28 @@ void CorePGQOptions::RegisterPathFindingLightPartitionMultiplier(
     "Multiplier used for the light partitions of the local CSR partitioning", LogicalType::INTEGER, Value(1));
 }
 
-//------------------------------------------------------------------------------
-// Register option
-//------------------------------------------------------------------------------
 void CorePGQOptions::RegisterPathFindingHeavyPartitionFraction(
     DatabaseInstance &db) {
   auto &config = DBConfig::GetConfig(db);
 
   config.AddExtensionOption("experimental_path_finding_operator_heavy_partition_fraction",
     "Fraction of edges part of the heavy partitions for the local CSR partitioning", LogicalType::DOUBLE, Value(0.75));
+}
+
+void CorePGQOptions::RegisterPathFindingBottomUpThreshold(
+    DatabaseInstance &db) {
+  auto &config = DBConfig::GetConfig(db);
+
+  config.AddExtensionOption("experimental_path_finding_operator_bottom_up_threshold",
+    "Threshold for the frontier size to trigger the bottom up exploration", LogicalType::DOUBLE, Value(0.1));
+}
+
+void CorePGQOptions::RegisterPathFindingEnableBottomUpSearch(
+    DatabaseInstance &db) {
+  auto &config = DBConfig::GetConfig(db);
+
+  config.AddExtensionOption("experimental_path_finding_operator_enable_bottom_up",
+    "Enable or disable bottom-up search", LogicalType::BOOLEAN, Value(true));
 }
 
 } // namespace core
