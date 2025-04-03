@@ -16,6 +16,9 @@ namespace core {
 string LocalCSR::ToString() const {
     std::ostringstream result;
     size_t max_print_value = 50;
+    result << "Local CSR:\n";
+    result << "Start vertex: " << start_vertex << "\n";
+    result << "End vertex: " << end_vertex << "\n";
     if (initialized_v) {
         result << "v (Node Offsets):\n";
         for (size_t i = 0; i < std::min(max_print_value, v_array_size); i++) {
@@ -47,6 +50,7 @@ string LocalCSR::ToString() const {
 
 string CSR::ToString() const {
     std::ostringstream result;
+    result << "CSR:\n";
 
     if (initialized_v) {
         result << "v (Node Offsets):\n";
