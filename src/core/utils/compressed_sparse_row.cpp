@@ -36,7 +36,7 @@ string LocalCSR::ToString() const {
         for (size_t i = 0; i < std::min(max_print_value, v_array_size - 2); i++) {
             result << "  Node " << i << " connects to: ";
             for (size_t j = v[i].load(); j < v[i + 1].load(); j++) {
-                result << e[j] << " ";
+                result << e[j] + start_vertex << " ";
             }
             result << "\n";
         }
