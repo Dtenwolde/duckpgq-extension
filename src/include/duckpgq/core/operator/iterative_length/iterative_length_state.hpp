@@ -14,7 +14,7 @@ class IterativeLengthState : public BFSState {
 public:
   IterativeLengthState(const shared_ptr<DataChunk> &pairs_, std::vector<shared_ptr<LocalCSR>> &local_csrs_,
     std::vector<shared_ptr<LocalCSR>> &local_reverse_csrs_,
-    idx_t num_threads_, ClientContext &context_, int64_t vsize_);
+    idx_t num_threads_, ClientContext &context_, int64_t vsize_, CSR* reverse_csr);
 
   void ScheduleBFSBatch(Pipeline &pipeline, Event &event, const PhysicalPathFinding *op) override;
 

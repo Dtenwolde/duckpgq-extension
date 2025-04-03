@@ -31,7 +31,7 @@ create or replace table snb_pairs as (
 );
 
 statement ok
-set threads = 1;
+set threads = 2;
 
 query III
 with reverse_csr_cte as (

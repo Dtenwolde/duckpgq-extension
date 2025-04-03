@@ -85,21 +85,18 @@ double IterativeLengthTask::ExploreTopDown(const std::vector<std::bitset<LANE_LI
 
 double IterativeLengthTask::ExploreBottomUp(const std::vector<std::bitset<LANE_LIMIT>> &visit,
                                             std::vector<std::bitset<LANE_LIMIT>> &next,
-                                            const std::atomic<uint32_t> *v,
-                                            const std::vector<uint16_t> &e,
-                                            size_t v_size,
-                                            idx_t start_vertex) {
+                                            std::vector<std::bitset<LANE_LIMIT>> &seen,
+                                            const std::atomic<int64_t> *v,
+                                            const std::vector<int64_t> &e,
+                                            idx_t start_vertex, idx_t end_vertex) {
   auto start_time = std::chrono::high_resolution_clock::now();
-  for (auto i = 0; i < v_size; i++) {
-    if (!visit[i].any()) {
+  for (auto i = start_vertex; i < end_vertex; i++) {
+    if (!seen[i].all()) {
       auto start_edges = v[i].load(std::memory_order_relaxed);
       auto end_edges = v[i + 1].load(std::memory_order_relaxed);
       for (auto offset = start_edges; offset < end_edges; offset++) {
-        auto neighbor = e[offset] + start_vertex;
-        if (visit[neighbor].any()) {
-          next[i] = visit[neighbor];  // Propagate the source that reached neighbor
-          break; // No need to check other neighbors
-        }
+        auto neighbor = e[offset];
+        next[i] |= visit[neighbor];  // Propagate the source that reached neighbor
       }
     }
   }
@@ -112,17 +109,12 @@ void IterativeLengthTask::RunExplore(const std::vector<std::bitset<LANE_LIMIT>> 
                                      std::vector<std::bitset<LANE_LIMIT>> &next,
                                      const std::atomic<uint32_t> *v,
                                      const std::vector<uint16_t> &e,
-                                     size_t v_size, idx_t start_vertex,
-                                     bool use_bottom_up) {
+                                    size_t v_size, idx_t start_vertex) {
 
   // Decide traversal strategy based on frontier size
   // You can tune this threshold! For now: bottom-up if > 5% of v_size
   double time_taken;
-  if (use_bottom_up) {
-    time_taken = ExploreBottomUp(visit, next, v, e, v_size, start_vertex);
-  } else {
-    time_taken = ExploreTopDown(visit, next, v, e, v_size, start_vertex);
-  }
+  time_taken = ExploreTopDown(visit, next, v, e, v_size, start_vertex);
 
   // Get thread & core info *outside* Explore to reduce per-call overhead
   std::thread::id thread_id = std::this_thread::get_id();
@@ -167,7 +159,7 @@ void IterativeLengthTask::IterativeLength() {
     barrier->Wait(worker_id);
     // Estimate current frontier size (number of active vertices)
     size_t frontier_size = std::count_if(visit.begin(), visit.end(), [](const std::bitset<LANE_LIMIT> &b) { return b.any(); });
-    bool use_bottom_up = false; //frontier_size > 0.1 * state->local_csrs[0]->GetVertexSize();
+    bool use_bottom_up = frontier_size > 0.1 * state->local_csrs[0]->GetVertexSize();
     auto csrs_to_use = use_bottom_up ? state->local_reverse_csrs : state->local_csrs;
     while (state->local_csr_counter < csrs_to_use.size()) {
       state->local_csr_lock.lock();
@@ -176,11 +168,18 @@ void IterativeLengthTask::IterativeLength() {
         break;
       }
       auto local_csr = csrs_to_use[state->local_csr_counter++].get();
+
       if (!local_csr) {
         throw InternalException("Tried to reference nullptr for LocalCSR");
       }
       state->local_csr_lock.unlock();
-      RunExplore(visit, next, local_csr->v, local_csr->e, local_csr->GetVertexSize(), local_csr->start_vertex, use_bottom_up);
+      if (use_bottom_up) {
+        idx_t vertex_size = local_csr->GetVertexSize();
+        auto final_vertex = std::min(local_csr->end_vertex, vertex_size); // Avoid going out-of-range
+        ExploreBottomUp(visit, next, seen, state->reverse_csr->v, state->reverse_csr->e, local_csr->start_vertex, final_vertex);
+      } else {
+        RunExplore(visit, next, local_csr->v, local_csr->e, local_csr->GetVertexSize(), local_csr->start_vertex);
+      }
     }
     state->change = false;
     // Mark this thread as finished

@@ -28,9 +28,6 @@ TaskExecutionResult LocalCSRTask::ExecuteTask(TaskExecutionMode mode) {
   DistributeEdges(); // Phase 5
   barrier->Wait(worker_id);
   event->FinishTask();
-  for (const auto &local_csr : local_csr_state->partition_csrs) {
-    Printer::PrintF("%s", local_csr->ToString());
-  }
   return TaskExecutionResult::TASK_FINISHED;
 }
 

@@ -31,17 +31,17 @@ private:
 
   double ExploreBottomUp(const std::vector<std::bitset<LANE_LIMIT>> &visit,
     std::vector<std::bitset<LANE_LIMIT>> &next,
-    const std::atomic<uint32_t> *v,
-    const std::vector<uint16_t> &e,
-    size_t v_size,
-    idx_t start_vertex);
+    std::vector<std::bitset<LANE_LIMIT>> &seen,
+    const std::atomic<int64_t> *v,
+    const std::vector<int64_t> &e,
+    idx_t start_vertex,
+    idx_t end_vertex);
 
   void RunExplore(const std::vector<std::bitset<LANE_LIMIT>> &visit,
                 std::vector<std::bitset<LANE_LIMIT>> &next,
                 const std::atomic<uint32_t> *v,
                 const std::vector<uint16_t> &e,
-                size_t v_size, idx_t start_vertex,
-                bool use_bottom_up);
+                size_t v_size, idx_t start_vertex);
 private:
   ClientContext &context;
   shared_ptr<IterativeLengthState> &state;
