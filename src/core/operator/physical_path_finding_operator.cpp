@@ -137,7 +137,6 @@ PhysicalPathFinding::Finalize(Pipeline &pipeline, Event &event,
   // Check if we have to do anything for CSR child
   if (gstate.child == 0) {
     ++gstate.child;
-    Printer::PrintF("CSR Size: %d, Reverse CSR size: %d", gstate.csr->vsize, gstate.reverse_csr->vsize);
     auto local_csr_state = make_shared_ptr<LocalCSRState>(context, gstate.csr, gstate.num_threads);
     gstate.local_csr_state = local_csr_state;
     event.InsertEvent(make_shared_ptr<LocalCSREvent>(local_csr_state, pipeline, *this, context));
@@ -145,15 +144,6 @@ PhysicalPathFinding::Finalize(Pipeline &pipeline, Event &event,
     auto local_reverse_csr_state = make_shared_ptr<LocalCSRState>(context, gstate.reverse_csr, gstate.num_threads);
     gstate.local_reverse_csr_state = local_reverse_csr_state;
     event.InsertEvent(make_shared_ptr<LocalCSREvent>(local_reverse_csr_state, pipeline, *this, context));
-
-    // Somewhere in your crash path or debug logic
-    std::ofstream out("reverse_csr.txt");
-    if (out.is_open()) {
-      out << gstate.reverse_csr->ToString();
-      out.close();
-    } else {
-      std::cerr << "Failed to open output file for reverse CSR." << std::endl;
-    }
 
     return SinkFinalizeType::READY;
   }
