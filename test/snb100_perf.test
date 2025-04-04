@@ -14,21 +14,18 @@ statement ok
 set experimental_path_finding_operator=true;
 
 statement ok
-set experimental_path_finding_operator_heavy_partition_fraction = 0.5;
-
-statement ok
-set experimental_path_finding_operator_light_partition_multiplier = 1;
-
-statement ok
 set experimental_path_finding_operator_enable_bottom_up = true;
 
-# statement ok
-# create or replace table snb_pairs as (
-#    select src, dst
-#    from (select a.rowid as src from person a),
-#         (select b.rowid as dst from person b)
-#    using sample reservoir(16384 rows) repeatable (300)
-# );
+statement ok
+set experimental_path_finding_operator_bottom_up_threshold = 0.5;
+
+statement ok
+create or replace table snb_pairs as (
+   select src, dst
+   from (select a.rowid as src from person a),
+        (select b.rowid as dst from person b)
+   using sample reservoir(16384 rows) repeatable (300)
+);
 
 query III nosort lengthpairs
 WITH cte1 AS (
@@ -61,7 +58,7 @@ WITH cte1 AS (
             WHERE __x.temp * 0 = 0;
 
 statement ok
-set threads=8;
+set threads=1;
 
 query III nosort lengthpairs
 with reverse_csr_cte as (

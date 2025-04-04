@@ -126,7 +126,7 @@ void LocalCSRTask::CountOutgoingEdgesPerPartition() {
 
 
 void LocalCSRTask::DeterminePartitions() const {
-  const idx_t max_vertex = local_csr_state->global_csr->vsize;
+  const idx_t max_vertex = local_csr_state->global_csr->vsize - 2;
 
   // Get edge histogram across 256 chunks
   const auto &edge_histogram = local_csr_state->statistics_chunks; // e.g., vector<idx_t> of size 256
