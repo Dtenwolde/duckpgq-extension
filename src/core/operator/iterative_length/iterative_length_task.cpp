@@ -85,7 +85,7 @@ double IterativeLengthTask::ExploreTopDown(const std::vector<std::bitset<LANE_LI
 
 double IterativeLengthTask::ExploreBottomUp(const std::vector<std::bitset<LANE_LIMIT>> &visit,
                                             std::vector<std::bitset<LANE_LIMIT>> &next,
-                                            std::vector<std::bitset<LANE_LIMIT>> &seen,
+                                            const std::vector<std::bitset<LANE_LIMIT>> &seen,
                                             const std::atomic<int64_t> *v,
                                             const std::vector<int64_t> &e,
                                             idx_t start_vertex, idx_t end_vertex) {
@@ -94,9 +94,21 @@ double IterativeLengthTask::ExploreBottomUp(const std::vector<std::bitset<LANE_L
     if (!seen[i].all()) {
       auto start_edges = v[i].load(std::memory_order_relaxed);
       auto end_edges = v[i + 1].load(std::memory_order_relaxed);
-      for (auto offset = start_edges; offset < end_edges; offset++) {
-        auto neighbor = e[offset];
-        next[i] |= visit[neighbor];  // Propagate the source that reached neighbor
+      auto deg = end_edges - start_edges;
+      switch (deg) {
+        case 8: next[i] |= visit[e[start_edges + 7]];
+        case 7: next[i] |= visit[e[start_edges + 6]];
+        case 6: next[i] |= visit[e[start_edges + 5]];
+        case 5: next[i] |= visit[e[start_edges + 4]];
+        case 4: next[i] |= visit[e[start_edges + 3]];
+        case 3: next[i] |= visit[e[start_edges + 2]];
+        case 2: next[i] |= visit[e[start_edges + 1]];
+        case 1: next[i] |= visit[e[start_edges]];
+          break;
+        default:
+          for (auto offset = start_edges; offset < end_edges; offset++) {
+            next[i] |= visit[e[offset]];
+          }
       }
     }
   }
