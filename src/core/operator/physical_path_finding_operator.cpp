@@ -174,6 +174,7 @@ PhysicalPathFinding::Finalize(Pipeline &pipeline, Event &event,
   // Move to the next input child
   ++gstate.child;
   duckpgq_state->csr_to_delete.insert(gstate.csr_id);
+  duckpgq_state->csr_to_delete.insert(gstate.reverse_csr_id);
   return SinkFinalizeType::READY;
 }
 
