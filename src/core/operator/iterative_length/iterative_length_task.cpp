@@ -3,6 +3,7 @@
 #include <duckpgq/core/operator/iterative_length/iterative_length_state.hpp>
 #include <duckpgq/core/operator/physical_path_finding_operator.hpp>
 #include <duckpgq/core/option/duckpgq_option.hpp>
+#include <fstream>
 
 namespace duckpgq {
 namespace core {
@@ -86,14 +87,14 @@ double IterativeLengthTask::ExploreTopDown(const std::vector<std::bitset<LANE_LI
 double IterativeLengthTask::ExploreBottomUp(const std::vector<std::bitset<LANE_LIMIT>> &visit,
                                             std::vector<std::bitset<LANE_LIMIT>> &next,
                                             const std::vector<std::bitset<LANE_LIMIT>> &seen,
-                                            const std::atomic<int64_t> *v,
-                                            const std::vector<int64_t> &e,
+                                            const std::atomic<uint32_t> *v,
+                                            const std::vector<uint32_t> &e,
                                             idx_t start_vertex, idx_t end_vertex) {
   auto start_time = std::chrono::high_resolution_clock::now();
   for (auto i = start_vertex; i < end_vertex; i++) {
     if (!seen[i].all()) {
-      auto start_edges = v[i].load(std::memory_order_relaxed);
-      auto end_edges = v[i + 1].load(std::memory_order_relaxed);
+      auto start_edges = v[i - start_vertex].load(std::memory_order_relaxed);
+      auto end_edges = v[i - start_vertex + 1].load(std::memory_order_relaxed);
       for (auto offset = start_edges; offset < end_edges; offset++) {
         auto neighbor = e[offset];
         next[i] |= visit[neighbor];
@@ -156,30 +157,38 @@ void IterativeLengthTask::IterativeLength() {
     state->partition_counter = 0;
     state->local_csr_counter = 0;
     static std::atomic<int> finished_tasks(0);
+    static std::atomic<double> time_taken(0.0);
+
     barrier->Wait(worker_id);
     // Estimate current frontier size (number of active vertices)
     size_t frontier_size = std::count_if(visit.begin(), visit.end(), [](const std::bitset<LANE_LIMIT> &b) { return b.any(); });
 
     bool use_bottom_up = GetEnableBottomUpSearch(context) && (frontier_size > GetBottomUpThreshold(context) * state->local_csrs[0]->GetVertexSize());
-    auto csrs_to_use = use_bottom_up ? state->local_reverse_csrs : state->local_csrs;
-    while (state->local_csr_counter < csrs_to_use.size()) {
-      state->local_csr_lock.lock();
-      if (state->local_csr_counter >= csrs_to_use.size()) {
-        state->local_csr_lock.unlock();
+    size_t csr_partition_counter = use_bottom_up ? state->local_reverse_csrs.size() : state->local_csrs.size();
+    barrier->Wait(worker_id);
+    while (state->local_csr_counter.load() < csr_partition_counter) {
+      auto csr_index = state->local_csr_counter.fetch_add(1);
+      if (csr_index >= csr_partition_counter) {
         break;
       }
-      auto local_csr = csrs_to_use[state->local_csr_counter++].get();
-
-      if (!local_csr) {
-        throw InternalException("Tried to reference nullptr for LocalCSR");
-      }
-      state->local_csr_lock.unlock();
       if (use_bottom_up) {
-        idx_t vertex_size = local_csr->GetVertexSize();
-        auto final_vertex = std::min(local_csr->end_vertex, vertex_size); // Avoid going out-of-range
-        ExploreBottomUp(visit, next, seen, state->reverse_csr->v, state->reverse_csr->e, local_csr->start_vertex, final_vertex);
+        auto reverse_csr = state->local_reverse_csrs[csr_index].get();
+        auto v = reverse_csr->v;
+        auto e = reverse_csr->e;
+        double time_taken_func = ExploreBottomUp(visit, next, seen, v, e, reverse_csr->start_vertex, reverse_csr->end_vertex);
+        double old = time_taken.load();
+        double desired;
+        do {
+          desired = old + time_taken_func;
+        } while (!time_taken.compare_exchange_weak(old, desired));
       } else {
-        RunExplore(visit, next, local_csr->v, local_csr->e, local_csr->GetVertexSize(), local_csr->start_vertex);
+        auto csr = state->local_csrs[csr_index].get();
+        double time_taken_func = ExploreTopDown(visit, next, csr->v, csr->e, csr->GetVertexSize(), csr->start_vertex);
+        double old = time_taken.load();
+        double desired;
+        do {
+          desired = old + time_taken_func;
+        } while (!time_taken.compare_exchange_weak(old, desired));
       }
     }
     state->change = false;
@@ -191,6 +200,33 @@ void IterativeLengthTask::IterativeLength() {
     }
 
     barrier->Wait(worker_id);
+
+    if (worker_id == 0) {
+      // After the while loop
+      size_t num_vertices = state->local_csrs[0]->GetVertexSize(); // or from context if global
+      idx_t iteration = state->iter; // assuming you track it somewhere
+      string file_name = "bfs_stats_" + to_string(GetBottomUpThreshold(context)) + ".csv";
+      std::ofstream stats_file(file_name, std::ios::app); // append mode
+      if (!stats_file.is_open()) {
+        throw std::runtime_error("Unable to open stats file.");
+      }
+
+      // Write header if the file is new (optional, simple check based on iteration 0)
+      if (iteration == 0) {
+        stats_file << "iteration,frontier_size,num_vertices,use_bottom_up,bottom_up_threshold,time_taken\n";
+      }
+
+      stats_file << iteration << ","
+                 << frontier_size << ","
+                 << num_vertices << ","
+                 << (use_bottom_up ? "true" : "false") << ","
+                 << GetBottomUpThreshold(context) << ","
+                 << time_taken << "\n";
+
+      stats_file.close();
+    }
+
+
     while (state->partition_counter < state->local_csrs.size()) {
       state->local_csr_lock.lock();
       if (state->partition_counter < state->local_csrs.size()) {
@@ -203,6 +239,8 @@ void IterativeLengthTask::IterativeLength() {
       }
     }
     barrier->Wait(worker_id);
+
+    time_taken = 0.0;
     state->partition_counter = 0;
 }
 

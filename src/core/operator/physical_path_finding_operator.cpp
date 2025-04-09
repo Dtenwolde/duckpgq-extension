@@ -14,6 +14,8 @@
 #include <cmath> // for std::sqrt
 #include <duckpgq/core/operator/iterative_length/iterative_length_state.hpp>
 #include <duckpgq/core/operator/local_csr/local_csr_event.hpp>
+#include <duckpgq/core/operator/local_csr/local_reverse_csr_event.hpp>
+#include <duckpgq/core/operator/local_csr/local_reverse_csr_state.hpp>
 #include <duckpgq/core/option/duckpgq_option.hpp>
 #include <duckpgq/core/utils/duckpgq_utils.hpp>
 #include <duckpgq_state.hpp>
@@ -141,10 +143,9 @@ PhysicalPathFinding::Finalize(Pipeline &pipeline, Event &event,
     gstate.local_csr_state = local_csr_state;
     event.InsertEvent(make_shared_ptr<LocalCSREvent>(local_csr_state, pipeline, *this, context));
 
-    auto local_reverse_csr_state = make_shared_ptr<LocalCSRState>(context, gstate.reverse_csr, gstate.num_threads);
+    auto local_reverse_csr_state = make_shared_ptr<LocalReverseCSRState>(context, gstate.reverse_csr, gstate.num_threads);
     gstate.local_reverse_csr_state = local_reverse_csr_state;
-    event.InsertEvent(make_shared_ptr<LocalCSREvent>(local_reverse_csr_state, pipeline, *this, context));
-
+    event.InsertEvent(make_shared_ptr<LocalReverseCSREvent>(local_reverse_csr_state, pipeline, *this, context));
     return SinkFinalizeType::READY;
   }
 

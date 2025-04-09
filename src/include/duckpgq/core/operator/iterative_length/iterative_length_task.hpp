@@ -32,8 +32,8 @@ private:
   double ExploreBottomUp(const std::vector<std::bitset<LANE_LIMIT>> &visit,
     std::vector<std::bitset<LANE_LIMIT>> &next,
     const std::vector<std::bitset<LANE_LIMIT>> &seen,
-    const std::atomic<int64_t> *v,
-    const std::vector<int64_t> &e,
+    const std::atomic<uint32_t> *v,
+    const std::vector<uint32_t> &e,
     idx_t start_vertex,
     idx_t end_vertex);
 

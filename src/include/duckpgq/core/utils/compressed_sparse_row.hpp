@@ -62,6 +62,36 @@ public:
   bool initialized_e = false;
 };
 
+class LocalReverseCSR {
+public:
+  LocalReverseCSR(idx_t start_vertex_p, idx_t end_vertex_p)
+      : start_vertex(start_vertex_p), end_vertex(end_vertex_p), v_array_size(end_vertex_p - start_vertex_p + 2) {
+    v = new std::atomic<uint32_t>[v_array_size](); // Zero-initialize
+    initialized_v = true;
+  }
+
+  ~LocalReverseCSR() {
+    delete[] v;
+  }
+
+  std::atomic<uint32_t>* GetVertexArray() { return v; }
+  std::vector<uint32_t>* GetEdgeVector() { return &e; }
+
+  size_t GetVertexSize() const { return v_array_size - 2; }
+  size_t GetEdgeSize() const { return e.size(); }
+
+  idx_t start_vertex;
+  idx_t end_vertex;
+  std::atomic<uint32_t>* v;
+  size_t v_array_size;
+  std::vector<uint32_t> e;
+
+  bool initialized_v = false;
+  bool initialized_e = false;
+
+  string ToString() const;
+};
+
 class CSR {
 public:
   CSR() = default;

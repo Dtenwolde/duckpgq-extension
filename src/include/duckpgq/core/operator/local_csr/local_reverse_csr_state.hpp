@@ -9,9 +9,9 @@ namespace duckpgq {
 
 namespace core {
 
-class LocalCSRState {
+class LocalReverseCSRState {
 public:
-  LocalCSRState(ClientContext &context_p, CSR *csr, idx_t num_threads_p);
+  LocalReverseCSRState(ClientContext &context_p, CSR *csr, idx_t num_threads_p);
 
 public:
   CSR* global_csr;
@@ -22,7 +22,7 @@ public:
 
   unique_ptr<Barrier> barrier;
   std::vector<int64_t> statistics_chunks;
-  std::vector<shared_ptr<LocalCSR>> partition_csrs;
+  std::vector<shared_ptr<LocalReverseCSR>> partition_csrs;
   std::atomic<idx_t> partition_index;
 };
 

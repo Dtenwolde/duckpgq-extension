@@ -16,7 +16,7 @@ class PhysicalPathFinding; // Forward declaration
 class BFSState : public enable_shared_from_this<BFSState> {
 public:
   BFSState(const shared_ptr<DataChunk> &pairs_, std::vector<shared_ptr<LocalCSR>> &local_csrs_,
-    std::vector<shared_ptr<LocalCSR>> &local_reverse_csrs_,
+    std::vector<shared_ptr<LocalReverseCSR>> &local_reverse_csrs_,
     idx_t num_threads_, string mode_, ClientContext &context_, int64_t vsize_, CSR* reverse_csr);
 
   virtual ~BFSState();
@@ -30,7 +30,7 @@ public:
   // Common members
   shared_ptr<DataChunk> pairs;
   std::vector<shared_ptr<LocalCSR>> local_csrs;
-  std::vector<shared_ptr<LocalCSR>> local_reverse_csrs;
+  std::vector<shared_ptr<LocalReverseCSR>> local_reverse_csrs;
   CSR* reverse_csr;
   atomic<int64_t> partition_counter;
   string mode;

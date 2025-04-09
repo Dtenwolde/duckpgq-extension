@@ -14,6 +14,7 @@
 #include "duckpgq/common.hpp"
 #include "duckpgq/core/operator/bfs_state.hpp"
 #include "local_csr/local_csr_state.hpp"
+#include "local_csr/local_reverse_csr_state.hpp"
 
 #include <duckpgq/core/utils/compressed_sparse_row.hpp>
 
@@ -22,6 +23,7 @@ namespace duckpgq {
 namespace core {
 class BFSState; // Forward declaration
 class LocalCSRState; // Forward declaration
+class LocalReverseCSRState; // Forward declaration
 
 class PhysicalPathFinding : public PhysicalComparisonJoin {
 
@@ -116,7 +118,7 @@ public:
   ClientContext &context_;
   idx_t num_threads;
   shared_ptr<LocalCSRState> local_csr_state;
-  shared_ptr<LocalCSRState> local_reverse_csr_state;
+  shared_ptr<LocalReverseCSRState> local_reverse_csr_state;
 };
 
 } // namespace core
