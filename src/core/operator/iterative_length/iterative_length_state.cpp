@@ -17,14 +17,17 @@ IterativeLengthState::IterativeLengthState(const shared_ptr<DataChunk> &pairs_, 
 }
 
 void IterativeLengthState::Clear() {
-  iter = 1;
+  iter = 0;
   active = 0;
   change = false;
   // empty visit vectors
   for (auto i = 0; i < v_size; i++) {
-    visit1[i] = 0;
-    visit2[i] = 0;
-    seen[i] = 0; // reset
+    src_visit1[i] = 0;
+    src_visit2[i] = 0;
+    src_seen[i] = 0; // reset
+    dst_visit1[i] = 0;
+    dst_visit2[i] = 0;
+    dst_seen[i] = 0; // reset
   }
   lane_completed.reset();
 }

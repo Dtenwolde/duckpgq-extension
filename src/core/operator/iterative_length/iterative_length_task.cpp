@@ -31,6 +31,17 @@ void IterativeLengthTask::CheckChange(std::vector<std::bitset<LANE_LIMIT>> &seen
   }
 }
 
+std::bitset<LANE_LIMIT> IterativeLengthTask::IntersectFrontiers(int64_t v_size,
+  vector<std::bitset<LANE_LIMIT>> &src_seen,
+  vector<std::bitset<LANE_LIMIT>> &dst_seen) {
+  std::bitset<LANE_LIMIT> result;
+  for (auto v = 0; v < v_size; v++) {
+    result |= src_seen[v] & dst_seen[v];
+  }
+  return result;
+}
+
+
 TaskExecutionResult IterativeLengthTask::ExecuteTask(TaskExecutionMode mode) {
   auto &barrier = state->barrier;
   while (state->started_searches < state->pairs->size()) {
@@ -41,10 +52,23 @@ TaskExecutionResult IterativeLengthTask::ExecuteTask(TaskExecutionMode mode) {
     }
     barrier->Wait(worker_id);
     do {
-      IterativeLength();
+      bool is_backward = state->iter & 1;
+      bool swap_buffers = state->iter & 2;
+      auto& seen      = is_backward ? state->dst_seen : state->src_seen;
+      auto& visit_from = swap_buffers
+                         ? (is_backward ? state->dst_visit2 : state->src_visit2)
+                         : (is_backward ? state->dst_visit1 : state->src_visit1);
+
+      auto& visit_to   = swap_buffers
+                         ? (is_backward ? state->dst_visit1 : state->src_visit1)
+                         : (is_backward ? state->dst_visit2 : state->src_visit2);
+
+      auto& local_csrs = is_backward ? state->local_reverse_csrs : state->local_csrs;
+      IterativeLength(visit_from, visit_to, seen, local_csrs);
       barrier->Wait(worker_id);
       if (worker_id == 0) {
-        ReachDetect();
+        std::bitset<LANE_LIMIT> done = IntersectFrontiers(state->v_size, state->src_seen, state->dst_seen);
+        ReachDetect(done);
       }
       barrier->Wait(worker_id);
     } while (state->change);
@@ -112,37 +136,46 @@ void IterativeLengthTask::RunExplore(const std::vector<std::bitset<LANE_LIMIT>> 
   }
 }
 
-void IterativeLengthTask::IterativeLength() {
-    auto &seen = state->seen;
-    const auto &visit = state->iter & 1 ? state->visit1 : state->visit2;
-    auto &next = state->iter & 1 ? state->visit2 : state->visit1;
+void IterativeLengthTask::IterativeLength(std::vector<std::bitset<LANE_LIMIT>> &visit,
+                                          std::vector<std::bitset<LANE_LIMIT>> &next,
+                                          std::vector<std::bitset<LANE_LIMIT>> &seen,
+                                          std::vector<shared_ptr<LocalCSR>> &local_csrs) {
+    // auto &src_seen = state->src_seen;
+    // const auto &src_visit = state->iter & 1 ? state->src_visit1 : state->src_visit2;
+    // auto &src_next = state->iter & 1 ? state->src_visit2 : state->src_visit1;
     auto &barrier = state->barrier;
+    size_t num_csr_partitions = local_csrs.size();
+
     // Clear `next` array
-    while (state->partition_counter < state->local_csrs.size()) {
-      state->local_csr_lock.lock();
-      if (state->partition_counter >= state->local_csrs.size()) {
-        state->local_csr_lock.unlock();
+    while (state->partition_counter.load() < num_csr_partitions) {
+      auto csr_index = state->partition_counter.fetch_add(1);
+      if (csr_index >= num_csr_partitions) {
         break;
       }
-      auto &local_csr = state->local_csrs[state->partition_counter++];
-      state->local_csr_lock.unlock();
+      auto &local_csr = local_csrs[csr_index];
       for (auto i = local_csr->start_vertex; i < local_csr->end_vertex; i++) {
         next[i] = 0;
       }
     }
+    // Finished clearing the next array
+
     barrier->Wait(worker_id);
+
+    // Reset the partition counter and initialize some values
     state->partition_counter.store(0, std::memory_order_release);
     static std::atomic<int> finished_tasks(0);
     static std::atomic<double> time_taken(0.0);
-    size_t csr_partition_counter =  state->local_csrs.size();
     barrier->Wait(worker_id);
-    while (state->partition_counter.load() < csr_partition_counter) {
+
+    while (state->partition_counter.load() < num_csr_partitions) {
       auto csr_index = state->partition_counter.fetch_add(1);
-      if (csr_index >= csr_partition_counter) {
+      if (csr_index >= num_csr_partitions) {
         break;
       }
-      auto csr = state->local_csrs[csr_index].get();
-      double time_taken_func = ExploreTopDown(visit, next, csr->v, csr->e, csr->GetVertexSize(), csr->start_vertex);
+      auto &local_csr = local_csrs[csr_index];
+      double time_taken_func = ExploreTopDown(visit, next,
+        local_csr->v, local_csr->e,
+        local_csr->GetVertexSize(), local_csr->start_vertex);
       double old = time_taken.load();
       double desired;
       do {
@@ -157,37 +190,33 @@ void IterativeLengthTask::IterativeLength() {
       finished_tasks.store(0); // Reset for the next phase
       state->partition_counter.store(0);
     }
-
+    // Finished exploration phase
     barrier->Wait(worker_id);
 
-    while (state->partition_counter < state->local_csrs.size()) {
-      state->local_csr_lock.lock();
-      if (state->partition_counter < state->local_csrs.size()) {
-        auto &local_csr = state->local_csrs[state->partition_counter++];
-        state->local_csr_lock.unlock();
-        CheckChange(seen, next, local_csr);
-      } else {
-        state->local_csr_lock.unlock();
-        break; // Avoids reading invalid memory
+    while (state->partition_counter.load() < num_csr_partitions) {
+      auto csr_index = state->partition_counter.fetch_add(1);
+      if (csr_index >= num_csr_partitions) {
+        break;
       }
+      auto &local_csr = local_csrs[csr_index];
+      CheckChange(seen, next, local_csr);
     }
+    // Finished setting the seen array and checking for changes
     barrier->Wait(worker_id);
-
     time_taken = 0.0;
     state->partition_counter = 0;
 }
 
-void IterativeLengthTask::ReachDetect() const {
+void IterativeLengthTask::ReachDetect(std::bitset<LANE_LIMIT> done) const {
   auto result_data = FlatVector::GetData<int64_t>(state->pf_results->data[0]);
 
   // detect lanes that finished
   for (int64_t lane = 0; lane < LANE_LIMIT; lane++) {
     int64_t search_num = state->lane_to_num[lane];
     if (search_num >= 0) { // active lane
-      int64_t dst_pos = state->vdata_dst.sel->get_index(search_num);
-      if (state->seen[state->dst[dst_pos]][lane]) {
+      if (done[lane]) {
         result_data[search_num] =
-            state->iter; /* found at iter => iter = path length */
+            state->iter + 1; /* found at iter => iter = path length */
         state->lane_to_num[lane] = -1; // mark inactive
         state->active--;
       }

@@ -16,12 +16,19 @@ public:
 
   TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override;
 private:
-  void IterativeLength();
-  void ReachDetect() const;
+  void IterativeLength(std::vector<std::bitset<LANE_LIMIT>> &visit,
+                       std::vector<std::bitset<LANE_LIMIT>> &next,
+                       std::vector<std::bitset<LANE_LIMIT>> &seen,
+                       std::vector<shared_ptr<LocalCSR>> &local_csrs);
+  void ReachDetect(std::bitset<LANE_LIMIT> done) const;
   void CheckChange(std::vector<std::bitset<LANE_LIMIT>> &seen,
                    std::vector<std::bitset<LANE_LIMIT>> &next,
                    shared_ptr<LocalCSR> &local_csr) const;
   void UnReachableSet() const;
+
+  std::bitset<LANE_LIMIT> IntersectFrontiers(int64_t v_size,
+                                             vector<std::bitset<LANE_LIMIT>> &src_seen,
+                                             vector<std::bitset<LANE_LIMIT>> &dst_seen);
 
   double ExploreTopDown(const std::vector<std::bitset<LANE_LIMIT>> &visit,
     std::vector<std::bitset<LANE_LIMIT>> &next,

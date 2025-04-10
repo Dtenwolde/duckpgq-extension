@@ -24,13 +24,16 @@ BFSState::BFSState(const shared_ptr<DataChunk> &pairs_, std::vector<shared_ptr<L
   current_batch_path_list_len = 0;
   started_searches = 0; // reset
   active = 0;
-  iter = 1;
+  iter = 0;
   change = false;
   pf_results = make_shared_ptr<DataChunk>();
   pf_results->Initialize(context, {bfs_type});
-  visit1 = vector<std::bitset<LANE_LIMIT>>(v_size);
-  visit2 = vector<std::bitset<LANE_LIMIT>>(v_size);
-  seen = vector<std::bitset<LANE_LIMIT>>(v_size);
+  src_visit1 = vector<std::bitset<LANE_LIMIT>>(v_size);
+  src_visit2 = vector<std::bitset<LANE_LIMIT>>(v_size);
+  src_seen = vector<std::bitset<LANE_LIMIT>>(v_size);
+  dst_visit1 = vector<std::bitset<LANE_LIMIT>>(v_size);
+  dst_visit2 = vector<std::bitset<LANE_LIMIT>>(v_size);
+  dst_seen = vector<std::bitset<LANE_LIMIT>>(v_size);
 
   partition_counter = 0;
 
@@ -73,8 +76,8 @@ void BFSState::InitializeLanes() {
       } else if (src[src_pos] == dst[dst_pos]) {
         pf_results->data[0].SetValue(search_num, 0);
       } else {
-        visit1[src[src_pos]][lane] = true;
-        // bfs_state->seen[bfs_state->src[src_pos]][lane] = true;
+        src_visit1[src[src_pos]][lane] = true;
+        dst_visit1[dst[dst_pos]][lane] = true;
         lane_to_num[lane] = search_num; // active lane
         active++;
         seen_mask[lane] = false;
@@ -83,7 +86,8 @@ void BFSState::InitializeLanes() {
     }
   }
   for (int64_t i = 0; i < v_size; i++) {
-    seen[i] = seen_mask;
+    src_seen[i] = seen_mask;
+    dst_seen[i] = seen_mask;
   }
 }
 

@@ -58,9 +58,12 @@ public:
   mutex change_lock;
   mutex local_csr_lock;
   size_t current_batch_path_list_len;
-  vector<bitset<LANE_LIMIT>> seen;
-  vector<bitset<LANE_LIMIT>> visit1;
-  vector<bitset<LANE_LIMIT>> visit2;
+  vector<bitset<LANE_LIMIT>> src_seen;
+  vector<bitset<LANE_LIMIT>> src_visit1;
+  vector<bitset<LANE_LIMIT>> src_visit2;
+  vector<bitset<LANE_LIMIT>> dst_seen;
+  vector<bitset<LANE_LIMIT>> dst_visit1;
+  vector<bitset<LANE_LIMIT>> dst_visit2;
 
   idx_t tasks_scheduled;
   bitset<LANE_LIMIT> lane_completed;
