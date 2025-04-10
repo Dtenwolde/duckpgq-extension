@@ -88,7 +88,7 @@ TaskExecutionResult IterativeLengthTask::ExecuteTask(TaskExecutionMode mode) {
   return TaskExecutionResult::TASK_FINISHED;
 }
 
-double __attribute__ ((noinline)) IterativeLengthTask::ExploreTopDown(const std::vector<std::bitset<LANE_LIMIT>> &visit,
+double IterativeLengthTask::ExploreTopDown(const std::vector<std::bitset<LANE_LIMIT>> &visit,
                                   std::vector<std::bitset<LANE_LIMIT>> &next,
                                   const std::atomic<uint32_t> *v, const std::vector<uint16_t> &e, size_t v_size, idx_t start_vertex) {
   auto start_time = std::chrono::high_resolution_clock::now();
@@ -107,42 +107,39 @@ double __attribute__ ((noinline)) IterativeLengthTask::ExploreTopDown(const std:
   return std::chrono::duration<double, std::milli>(end_time - start_time).count(); // Return time in ms
 }
 
-void IterativeLengthTask::RunExplore(const std::vector<std::bitset<LANE_LIMIT>> &visit,
-                                     std::vector<std::bitset<LANE_LIMIT>> &next,
-                                     const std::atomic<uint32_t> *v,
-                                     const std::vector<uint16_t> &e,
-                                    size_t v_size, idx_t start_vertex) {
-
-  // Decide traversal strategy based on frontier size
-  // You can tune this threshold! For now: bottom-up if > 5% of v_size
-  double time_taken;
-  time_taken = ExploreTopDown(visit, next, v, e, v_size, start_vertex);
-
-  // Get thread & core info *outside* Explore to reduce per-call overhead
-  std::thread::id thread_id = std::this_thread::get_id();
-  int core_id = -1; // Default if not available
-#ifdef __linux__
-  core_id = sched_getcpu();
-#elif defined(__APPLE__)
-  uint64_t tid;
-  pthread_threadid_np(NULL, &tid);
-  core_id = static_cast<int>(tid % std::thread::hardware_concurrency()); // Approximate core ID mapping
-#endif
-
-  // Store result safely
-  {
-    std::lock_guard<std::mutex> guard(state->log_mutex);
-    state->timing_data.emplace_back(thread_id, core_id, time_taken, state->num_threads, v_size, e.size(), state->local_csrs.size(), state->iter);
-  }
-}
+// void IterativeLengthTask::RunExplore(const std::vector<std::bitset<LANE_LIMIT>> &visit,
+//                                      std::vector<std::bitset<LANE_LIMIT>> &next,
+//                                      const std::atomic<uint32_t> *v,
+//                                      const std::vector<uint16_t> &e,
+//                                     size_t v_size, idx_t start_vertex) {
+//
+//   // Decide traversal strategy based on frontier size
+//   // You can tune this threshold! For now: bottom-up if > 5% of v_size
+//   double time_taken;
+//   time_taken = ExploreTopDown(visit, next, v, e, v_size, start_vertex);
+//
+//   // Get thread & core info *outside* Explore to reduce per-call overhead
+//   std::thread::id thread_id = std::this_thread::get_id();
+//   int core_id = -1; // Default if not available
+// #ifdef __linux__
+//   core_id = sched_getcpu();
+// #elif defined(__APPLE__)
+//   uint64_t tid;
+//   pthread_threadid_np(NULL, &tid);
+//   core_id = static_cast<int>(tid % std::thread::hardware_concurrency()); // Approximate core ID mapping
+// #endif
+//
+//   // Store result safely
+//   {
+//     std::lock_guard<std::mutex> guard(state->log_mutex);
+//     state->timing_data.emplace_back(thread_id, core_id, time_taken, state->num_threads, v_size, e.size(), state->local_csrs.size(), state->iter);
+//   }
+// }
 
 void IterativeLengthTask::IterativeLength(std::vector<std::bitset<LANE_LIMIT>> &visit,
                                           std::vector<std::bitset<LANE_LIMIT>> &next,
                                           std::vector<std::bitset<LANE_LIMIT>> &seen,
                                           std::vector<shared_ptr<LocalCSR>> &local_csrs) {
-    // auto &src_seen = state->src_seen;
-    // const auto &src_visit = state->iter & 1 ? state->src_visit1 : state->src_visit2;
-    // auto &src_next = state->iter & 1 ? state->src_visit2 : state->src_visit1;
     auto &barrier = state->barrier;
     size_t num_csr_partitions = local_csrs.size();
 
@@ -164,7 +161,6 @@ void IterativeLengthTask::IterativeLength(std::vector<std::bitset<LANE_LIMIT>> &
     // Reset the partition counter and initialize some values
     state->partition_counter.store(0, std::memory_order_release);
     static std::atomic<int> finished_tasks(0);
-    static std::atomic<double> time_taken(0.0);
     barrier->Wait(worker_id);
 
     while (state->partition_counter.load() < num_csr_partitions) {
@@ -173,14 +169,9 @@ void IterativeLengthTask::IterativeLength(std::vector<std::bitset<LANE_LIMIT>> &
         break;
       }
       auto &local_csr = local_csrs[csr_index];
-      double time_taken_func = ExploreTopDown(visit, next,
+      ExploreTopDown(visit, next,
         local_csr->v, local_csr->e,
         local_csr->GetVertexSize(), local_csr->start_vertex);
-      double old = time_taken.load();
-      double desired;
-      do {
-        desired = old + time_taken_func;
-      } while (!time_taken.compare_exchange_weak(old, desired));
     }
     state->change = false;
     // Mark this thread as finished
@@ -203,7 +194,6 @@ void IterativeLengthTask::IterativeLength(std::vector<std::bitset<LANE_LIMIT>> &
     }
     // Finished setting the seen array and checking for changes
     barrier->Wait(worker_id);
-    time_taken = 0.0;
     state->partition_counter = 0;
 }
 
