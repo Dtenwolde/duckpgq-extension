@@ -131,14 +131,13 @@ void IterativeLengthTask::IterativeLength() {
       }
     }
     barrier->Wait(worker_id);
-    state->partition_counter = 0;
-    state->local_csr_counter = 0;
+    state->partition_counter.store(0, std::memory_order_release);
     static std::atomic<int> finished_tasks(0);
     static std::atomic<double> time_taken(0.0);
     size_t csr_partition_counter =  state->local_csrs.size();
     barrier->Wait(worker_id);
-    while (state->local_csr_counter.load() < csr_partition_counter) {
-      auto csr_index = state->local_csr_counter.fetch_add(1);
+    while (state->partition_counter.load() < csr_partition_counter) {
+      auto csr_index = state->partition_counter.fetch_add(1);
       if (csr_index >= csr_partition_counter) {
         break;
       }
@@ -156,6 +155,7 @@ void IterativeLengthTask::IterativeLength() {
     // Last thread reaching here should reset the counter for the next iteration
     if (finished_tasks.load() == state->tasks_scheduled) {
       finished_tasks.store(0); // Reset for the next phase
+      state->partition_counter.store(0);
     }
 
     barrier->Wait(worker_id);

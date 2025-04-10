@@ -12,9 +12,9 @@ namespace duckpgq {
 namespace core {
 
 BFSState::BFSState(const shared_ptr<DataChunk> &pairs_, std::vector<shared_ptr<LocalCSR>> &local_csrs_,
-  std::vector<shared_ptr<LocalReverseCSR>> &local_reverse_csrs_,
-  idx_t num_threads_, string mode_, ClientContext &context_, int64_t vsize_, CSR* reverse_csr_)
-    : pairs(pairs_), local_csrs(local_csrs_), local_reverse_csrs(local_reverse_csrs_), context(context_), num_threads(num_threads_), mode(std::move(mode_)), v_size(vsize_), reverse_csr(reverse_csr_),
+  std::vector<shared_ptr<LocalCSR>> &local_reverse_csrs_,
+  idx_t num_threads_, string mode_, ClientContext &context_, int64_t vsize_)
+    : pairs(pairs_), local_csrs(local_csrs_), local_reverse_csrs(local_reverse_csrs_), context(context_), num_threads(num_threads_), mode(std::move(mode_)), v_size(vsize_),
       src_data(pairs->data[0]), dst_data(pairs->data[1]){
   LogicalType bfs_type = mode == "iterativelength"
                              ? LogicalType::BIGINT
@@ -32,7 +32,6 @@ BFSState::BFSState(const shared_ptr<DataChunk> &pairs_, std::vector<shared_ptr<L
   visit2 = vector<std::bitset<LANE_LIMIT>>(v_size);
   seen = vector<std::bitset<LANE_LIMIT>>(v_size);
 
-  local_csr_counter = 0;
   partition_counter = 0;
 
   // Initialize source and destination vectors
@@ -42,7 +41,6 @@ BFSState::BFSState(const shared_ptr<DataChunk> &pairs_, std::vector<shared_ptr<L
   dst = FlatVector::GetData<int64_t>(dst_data);
 
   // Initialize the thread assignment vector
-  thread_assignment = std::vector<int64_t>(v_size, -1);
   tasks_scheduled = 0;
 
   // CreateTasks();
