@@ -92,12 +92,16 @@ double __attribute__ ((noinline)) IterativeLengthTask::ExploreBottomUp(const std
                                             idx_t start_vertex, idx_t end_vertex) {
   auto start_time = std::chrono::high_resolution_clock::now();
   for (auto i = start_vertex; i < end_vertex; i++) {
-    if (!seen[i].all()) {
+    auto search_mask = seen[i].all() && state->lane_to_num;
+    if (!seen[i].all() && state->lane_to_num) { // Add check that adds if lane is still active or inactive. That would eliminate some checks
       auto start_edges = v[i - start_vertex].load(std::memory_order_relaxed);
       auto end_edges = v[i - start_vertex + 1].load(std::memory_order_relaxed);
       for (auto offset = start_edges; offset < end_edges; offset++) {
         auto neighbor = e[offset];
-        next[i] |= visit[neighbor];
+        if (next[neighbor].any()) {
+          next[i] |= visit[neighbor];
+          break;
+        }
       }
     }
   }
@@ -256,6 +260,7 @@ void IterativeLengthTask::ReachDetect() const {
         result_data[search_num] =
             state->iter; /* found at iter => iter = path length */
         state->lane_to_num[lane] = -1; // mark inactive
+        state->search_mask = 0;
         state->active--;
       }
     }
