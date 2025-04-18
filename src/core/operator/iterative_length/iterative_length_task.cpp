@@ -259,7 +259,6 @@ void IterativeLengthTask::ReachDetect() const {
         result_data[search_num] =
             state->iter; /* found at iter => iter = path length */
         state->lane_to_num[lane] = -1; // mark inactive
-        state->search_mask = 0;
         state->active--;
       }
     }
