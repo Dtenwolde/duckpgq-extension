@@ -80,6 +80,7 @@ void BFSState::InitializeLanes() {
         dst_visit1[dst[dst_pos]][lane] = true;
         lane_to_num[lane] = search_num; // active lane
         active++;
+        lane_active[lane] = true;
         seen_mask[lane] = false;
         break;
       }

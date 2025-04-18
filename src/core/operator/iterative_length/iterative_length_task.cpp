@@ -152,6 +152,7 @@ void IterativeLengthTask::IterativeLength(std::vector<std::bitset<LANE_LIMIT>> &
       auto &local_csr = local_csrs[csr_index];
       for (auto i = local_csr->start_vertex; i < local_csr->end_vertex; i++) {
         next[i] = 0;
+        visit[i] &= state->lane_active;
       }
     }
     // Finished clearing the next array
@@ -209,6 +210,7 @@ void IterativeLengthTask::ReachDetect(std::bitset<LANE_LIMIT> done) const {
             state->iter + 1; /* found at iter => iter = path length */
         state->lane_to_num[lane] = -1; // mark inactive
         state->active--;
+        state->lane_active[lane] = false;
       }
     }
   }
@@ -229,6 +231,7 @@ void IterativeLengthTask::UnReachableSet() const {
       result_validity.SetInvalid(search_num);
       result_data[search_num] = (int64_t)-1; /* no path */
       state->lane_to_num[lane] = -1;     // mark inactive
+      state->lane_active[lane] = false;
     }
   }
 }
