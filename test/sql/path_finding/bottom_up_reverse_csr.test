@@ -14,6 +14,9 @@ set experimental_path_finding_operator_heavy_partition_fraction=0.5;
 statement ok
 set experimental_path_finding_operator_light_partition_multiplier = 1;
 
+# statement ok
+# set experimental_path_finding_operator_enable_bottom_up=false;
+
 query I
 SELECT current_setting('experimental_path_finding_operator');
 ----

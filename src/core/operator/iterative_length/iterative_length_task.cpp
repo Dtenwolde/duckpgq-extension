@@ -92,7 +92,7 @@ double IterativeLengthTask::ExploreBottomUp(const std::vector<std::bitset<LANE_L
                                             idx_t start_vertex, idx_t end_vertex) {
   auto start_time = std::chrono::high_resolution_clock::now();
   for (auto i = start_vertex; i < end_vertex; i++) {
-    if (!seen[i].all()) {
+    if (!seen[i].all()) { // Add check that adds if lane is still active or inactive. That would eliminate some checks
       auto start_edges = v[i - start_vertex].load(std::memory_order_relaxed);
       auto end_edges = v[i - start_vertex + 1].load(std::memory_order_relaxed);
       for (auto offset = start_edges; offset < end_edges; offset++) {
@@ -175,20 +175,20 @@ void IterativeLengthTask::IterativeLength() {
         auto reverse_csr = state->local_reverse_csrs[csr_index].get();
         auto v = reverse_csr->v;
         auto e = reverse_csr->e;
-        double time_taken_func = ExploreBottomUp(visit, next, seen, v, e, reverse_csr->start_vertex, reverse_csr->end_vertex);
-        double old = time_taken.load();
-        double desired;
-        do {
-          desired = old + time_taken_func;
-        } while (!time_taken.compare_exchange_weak(old, desired));
+        ExploreBottomUp(visit, next, seen, v, e, reverse_csr->start_vertex, reverse_csr->end_vertex);
+        // double old = time_taken.load();
+        // double desired;
+        // do {
+        //   desired = old + time_taken_func;
+        // } while (!time_taken.compare_exchange_weak(old, desired));
       } else {
         auto csr = state->local_csrs[csr_index].get();
-        double time_taken_func = ExploreTopDown(visit, next, csr->v, csr->e, csr->GetVertexSize(), csr->start_vertex);
-        double old = time_taken.load();
-        double desired;
-        do {
-          desired = old + time_taken_func;
-        } while (!time_taken.compare_exchange_weak(old, desired));
+        ExploreTopDown(visit, next, csr->v, csr->e, csr->GetVertexSize(), csr->start_vertex);
+        // double old = time_taken.load();
+        // double desired;
+        // do {
+          // desired = old + time_taken_func;
+        // } while (!time_taken.compare_exchange_weak(old, desired));
       }
     }
     state->change = false;
@@ -201,30 +201,30 @@ void IterativeLengthTask::IterativeLength() {
 
     barrier->Wait(worker_id);
 
-    if (worker_id == 0) {
-      // After the while loop
-      size_t num_vertices = state->local_csrs[0]->GetVertexSize(); // or from context if global
-      idx_t iteration = state->iter; // assuming you track it somewhere
-      string file_name = "bfs_stats_" + to_string(GetBottomUpThreshold(context)) + ".csv";
-      std::ofstream stats_file(file_name, std::ios::app); // append mode
-      if (!stats_file.is_open()) {
-        throw std::runtime_error("Unable to open stats file.");
-      }
-
-      // Write header if the file is new (optional, simple check based on iteration 0)
-      if (iteration == 0) {
-        stats_file << "iteration,frontier_size,num_vertices,use_bottom_up,bottom_up_threshold,time_taken\n";
-      }
-
-      stats_file << iteration << ","
-                 << frontier_size << ","
-                 << num_vertices << ","
-                 << (use_bottom_up ? "true" : "false") << ","
-                 << GetBottomUpThreshold(context) << ","
-                 << time_taken << "\n";
-
-      stats_file.close();
-    }
+    // if (worker_id == 0) {
+    //   // After the while loop
+    //   size_t num_vertices = state->local_csrs[0]->GetVertexSize(); // or from context if global
+    //   idx_t iteration = state->iter; // assuming you track it somewhere
+    //   string file_name = "bfs_stats_" + to_string(GetBottomUpThreshold(context)) + ".csv";
+    //   std::ofstream stats_file(file_name, std::ios::app); // append mode
+    //   if (!stats_file.is_open()) {
+    //     throw std::runtime_error("Unable to open stats file.");
+    //   }
+    //
+    //   // Write header if the file is new (optional, simple check based on iteration 0)
+    //   if (iteration == 0) {
+    //     stats_file << "iteration,frontier_size,num_vertices,use_bottom_up,bottom_up_threshold,time_taken\n";
+    //   }
+    //
+    //   stats_file << iteration << ","
+    //              << frontier_size << ","
+    //              << num_vertices << ","
+    //              << (use_bottom_up ? "true" : "false") << ","
+    //              << GetBottomUpThreshold(context) << ","
+    //              << time_taken << "\n";
+    //
+    //   stats_file.close();
+    // }
 
 
     while (state->partition_counter < state->local_csrs.size()) {

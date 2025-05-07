@@ -65,7 +65,7 @@ void LocalReverseCSRTask::FillLocalCSRPartition() const {
 }
 
 void LocalReverseCSRTask::ComputeVertexPartitionsByEdgeCount() const {
-  idx_t num_partitions = local_reverse_csr_state->num_threads * 4;
+  idx_t num_partitions = local_reverse_csr_state->num_threads;
   auto &v = local_reverse_csr_state->global_csr->v;  // V array of reverse CSR
   idx_t total_vertices = local_reverse_csr_state->global_csr->vsize - 2;
   idx_t total_edges = local_reverse_csr_state->global_csr->e.size();
