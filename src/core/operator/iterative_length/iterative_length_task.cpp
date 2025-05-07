@@ -65,7 +65,7 @@ TaskExecutionResult IterativeLengthTask::ExecuteTask(TaskExecutionMode mode) {
   return TaskExecutionResult::TASK_FINISHED;
 }
 
-double __attribute__ ((noinline)) IterativeLengthTask::ExploreTopDown(const std::vector<std::bitset<LANE_LIMIT>> &visit,
+double IterativeLengthTask::ExploreTopDown(const std::vector<std::bitset<LANE_LIMIT>> &visit,
                                   std::vector<std::bitset<LANE_LIMIT>> &next,
                                   const std::atomic<uint32_t> *v, const std::vector<uint16_t> &e, size_t v_size, idx_t start_vertex) {
   auto start_time = std::chrono::high_resolution_clock::now();
@@ -84,7 +84,7 @@ double __attribute__ ((noinline)) IterativeLengthTask::ExploreTopDown(const std:
   return std::chrono::duration<double, std::milli>(end_time - start_time).count(); // Return time in ms
 }
 
-double __attribute__ ((noinline)) IterativeLengthTask::ExploreBottomUp(const std::vector<std::bitset<LANE_LIMIT>> &visit,
+double IterativeLengthTask::ExploreBottomUp(const std::vector<std::bitset<LANE_LIMIT>> &visit,
                                             std::vector<std::bitset<LANE_LIMIT>> &next,
                                             const std::vector<std::bitset<LANE_LIMIT>> &seen,
                                             const std::atomic<uint32_t> *v,
